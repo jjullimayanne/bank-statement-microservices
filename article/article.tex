@@ -124,8 +124,11 @@ Para garantir entrega confi\'{a}vel de eventos mesmo em cen\'{a}rios de falha do
 
 \subsection{Infraestrutura como C\'{o}digo}
 
-Toda a infraestrutura \'{e} definida em um arquivo \texttt{docker-compose.yml} que orquestra: Redpanda (broker), PostgreSQL (3 bancos l\'{o}gicos), MongoDB, Redis, os 6 microsservi\c{c}os e o frontend. O comando \texttt{docker-compose up --build} inicializa o sistema completo, incluindo a cria\c{c}\~{a}o autom\'{a}tica de t\'{o}picos Kafka e seed de dados de demonstra\c{c}\~{a}o (duas contas mockadas com saldos em BRL, USD, EUR e GBP).
+Toda a infraestrutura \'{e} definida em um arquivo \texttt{docker-compose.yml} que orquestra: Redpanda (broker), PostgreSQL (3 bancos l\'{o}gicos), MongoDB, Redis, os 6 microsservi\c{c}os, o frontend, Prometheus e Grafana. O comando \texttt{docker-compose up --build} inicializa o sistema completo, incluindo a cria\c{c}\~{a}o autom\'{a}tica de t\'{o}picos Kafka e seed de dados de demonstra\c{c}\~{a}o.
 
+\subsection{Observabilidade}
+
+O sistema integra \textbf{Prometheus} para coleta de m\'{e}tricas e \textbf{Grafana} com dashboards pr\'{e}-provisionados. Os servi\c{c}os Java exp\~{o}em m\'{e}tricas via Spring Boot Actuator com Micrometer (Prometheus registry), enquanto os servi\c{c}os Go, Python e Node.js exp\~{o}em endpoints \texttt{/metrics} nativos. O dashboard inclui: taxa de requisi\c{c}\~{o}es HTTP, lat\^{e}ncia p95, status das sagas, eventos do outbox, uso de mem\'{o}ria JVM, conex\~{o}es de banco (HikariCP) e m\'{e}tricas de neg\'{o}cio (transa\c{c}\~{o}es publicadas, convers\~{o}es cambiais, entradas de extrato processadas).
 
 \section{Testes de Caos e Valida\c{c}\~{a}o}
 

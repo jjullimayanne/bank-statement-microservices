@@ -1,0 +1,264 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "title": "Service Health",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "up",
+          "legendFormat": "{{job}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "HTTP Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "rate(http_server_requests_seconds_count{job=~\".*service.*\"}[1m])",
+          "legendFormat": "{{job}} {{uri}} {{status}}"
+        },
+        {
+          "expr": "rate(http_requests_total[1m])",
+          "legendFormat": "{{job}} {{method}} {{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "title": "HTTP Response Latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{job=~\".*service.*\"}[1m]))",
+          "legendFormat": "{{job}} p95"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[1m]))",
+          "legendFormat": "{{job}} p95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "title": "Saga Status (Orchestrator)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "saga_total",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "bars", "lineWidth": 1, "fillOpacity": 50 }
+        }
+      }
+    },
+    {
+      "title": "Outbox Events",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "outbox_events_total",
+          "legendFormat": "{{status}} ({{job}})"
+        },
+        {
+          "expr": "outbox_events_pending",
+          "legendFormat": "pending ({{job}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Kafka Consumer Lag",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "kafka_consumer_records_lag_max{job=~\".*service.*\"}",
+          "legendFormat": "{{job}} lag"
+        },
+        {
+          "expr": "kafka_messages_consumed_total",
+          "legendFormat": "{{job}} consumed"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "JVM Memory Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{area=\"heap\",job=~\".*service.*\"} / 1024 / 1024",
+          "legendFormat": "{{job}} heap (MB)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 20 },
+          "unit": "decmbytes"
+        }
+      }
+    },
+    {
+      "title": "Transactions Published (Go)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 28 },
+      "targets": [
+        {
+          "expr": "transactions_published_total",
+          "legendFormat": "published"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Exchange Conversions (Python)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 28 },
+      "targets": [
+        {
+          "expr": "exchange_conversions_total",
+          "legendFormat": "conversions"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "purple", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Statement Entries Processed (Node.js)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 28 },
+      "targets": [
+        {
+          "expr": "statement_entries_processed_total",
+          "legendFormat": "processed"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "orange", "value": null }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Database Connections (Java Services)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{job=~\".*service.*\"}",
+          "legendFormat": "{{job}} active"
+        },
+        {
+          "expr": "hikaricp_connections_idle{job=~\".*service.*\"}",
+          "legendFormat": "{{job}} idle"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 }
+        }
+      }
+    },
+    {
+      "title": "Ledger Entries Recorded",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        {
+          "expr": "ledger_entries_total",
+          "legendFormat": "{{type}}"
+        },
+        {
+          "expr": "rate(ledger_entries_total[1m])",
+          "legendFormat": "{{type}} rate/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 10 }
+        }
+      }
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["microservices", "bank-statement", "saga"],
+  "templating": { "list": [] },
+  "time": { "from": "now-15m", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Bank Statement Microservices - Overview",
+  "uid": "bank-statement-overview",
+  "version": 1
+}

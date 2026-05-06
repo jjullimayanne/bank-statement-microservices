@@ -9,8 +9,15 @@ from uuid import uuid4
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from confluent_kafka import Consumer, Producer, KafkaError
 from motor.motor_asyncio import AsyncIOMotorClient
+from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
+
+exchange_conversions = Counter('exchange_conversions_total', 'Total exchange conversions processed')
+exchange_requests = Counter('exchange_requests_total', 'Total exchange requests received', ['status'])
+exchange_up = Gauge('up', 'Service health status')
+exchange_up.set(1)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("exchange-service")
@@ -93,11 +100,14 @@ def handle_exchange_request(event: dict):
         reply["errorMessage"] = f"Exchange rate not available for {source_currency} -> {target_currency}"
         reply["exchangeRate"] = 0
         reply["convertedAmount"] = 0
+        exchange_requests.labels(status='failed').inc()
     else:
         converted = round(source_amount * rate, 2)
         reply["success"] = True
         reply["exchangeRate"] = rate
         reply["convertedAmount"] = converted
+        exchange_conversions.inc()
+        exchange_requests.labels(status='success').inc()
 
     logger.info(
         f"[EXCHANGE] {source_currency} -> {target_currency}: "
@@ -188,3 +198,8 @@ async def convert(source: str, target: str, amount: float):
 @app.get("/api/exchange/health")
 async def health():
     return {"status": "UP", "service": "exchange-service"}
+
+
+@app.get("/metrics")
+async def metrics():
+    return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
