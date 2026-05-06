@@ -10,6 +10,7 @@ import com.bankstatement.common.enums.Currency;
 import com.bankstatement.common.enums.TransactionType;
 import com.bankstatement.common.events.AccountValidationEvent;
 import com.bankstatement.common.events.TransactionEvent;
+import com.bankstatement.common.outbox.OutboxService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -31,13 +32,16 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    private final OutboxService outboxService;
 
     public AccountService(AccountRepository accountRepository,
                           KafkaTemplate<String, String> kafkaTemplate,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          OutboxService outboxService) {
         this.accountRepository = accountRepository;
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
+        this.outboxService = outboxService;
     }
 
     @Transactional
@@ -140,11 +144,12 @@ public class AccountService {
     }
 
     private void publishReply(AccountValidationEvent reply) {
-        try {
-            String json = objectMapper.writeValueAsString(reply);
-            kafkaTemplate.send(KafkaTopics.ACCOUNT_VALIDATION_REPLY, reply.getSagaId(), json);
-        } catch (JsonProcessingException e) {
-            log.error("Error publishing account validation reply", e);
-        }
+        outboxService.saveEvent(
+                KafkaTopics.ACCOUNT_VALIDATION_REPLY,
+                reply.getSagaId(),
+                reply,
+                reply.getSagaId()
+        );
+        log.info("[OUTBOX] Account validation reply saved to outbox for saga {}", reply.getSagaId());
     }
 }

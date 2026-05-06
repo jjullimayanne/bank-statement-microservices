@@ -3,6 +3,34 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const Redis = require('ioredis');
 const { Kafka } = require('kafkajs');
+const promClient = require('prom-client');
+
+const register = new promClient.Registry();
+promClient.collectDefaultMetrics({ register });
+
+const statementEntriesProcessed = new promClient.Counter({
+  name: 'statement_entries_processed_total',
+  help: 'Total statement entries processed from Kafka',
+  registers: [register],
+});
+
+const kafkaMessagesConsumed = new promClient.Counter({
+  name: 'kafka_messages_consumed_total',
+  help: 'Total Kafka messages consumed',
+  registers: [register],
+});
+
+const cacheHits = new promClient.Counter({
+  name: 'cache_hits_total',
+  help: 'Total Redis cache hits',
+  registers: [register],
+});
+
+const cacheMisses = new promClient.Counter({
+  name: 'cache_misses_total',
+  help: 'Total Redis cache misses',
+  registers: [register],
+});
 
 const KAFKA_BROKERS = (process.env.KAFKA_BROKERS || 'localhost:19092').split(',');
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/statement_db';
@@ -59,6 +87,7 @@ async function startKafkaConsumer() {
   await consumer.run({
     eachMessage: async ({ topic, message }) => {
       try {
+        kafkaMessagesConsumed.inc();
         const event = JSON.parse(message.value.toString());
         await handleLedgerConfirmed(event);
       } catch (err) {
@@ -118,6 +147,7 @@ async function handleLedgerConfirmed(event) {
     await invalidateCache(creditAccountId);
   }
 
+  statementEntriesProcessed.inc();
   console.log(`[STATEMENT] Processed ledger entry ${ledgerEntryId} for saga ${sagaId}`);
 }
 
@@ -152,8 +182,10 @@ app.get('/api/statements/:accountId', async (req, res) => {
     const cacheKey = `statement:${accountId}:${currency || 'all'}:${limit}:${offset}`;
     const cached = await redis.get(cacheKey);
     if (cached) {
+      cacheHits.inc();
       return res.json(JSON.parse(cached));
     }
+    cacheMisses.inc();
 
     const filter = { accountId };
     if (currency) filter.currency = currency.toUpperCase();
@@ -206,6 +238,11 @@ app.get('/api/statements/:accountId/balances', async (req, res) => {
 
 app.get('/api/statements/health', async (req, res) => {
   res.json({ status: 'UP', service: 'statement-service' });
+});
+
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
 });
 
 async function main() {

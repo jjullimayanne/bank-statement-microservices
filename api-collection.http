@@ -1,0 +1,280 @@
+### ============================================================
+### BankStatement Microservices — API Collection
+### Use com VS Code REST Client extension ou IntelliJ HTTP Client
+### ============================================================
+
+### ─── Health Checks ──────────────────────────────────────────
+
+### Orchestrator Health
+GET http://localhost:8080/actuator/health
+
+###
+
+### Account Health
+GET http://localhost:8081/actuator/health
+
+###
+
+### Ledger Health
+GET http://localhost:8082/actuator/health
+
+###
+
+### Transaction Health
+GET http://localhost:8083/api/transactions/health
+
+###
+
+### Exchange Health
+GET http://localhost:8084/api/exchange/health
+
+###
+
+### Statement Health
+GET http://localhost:8085/api/statements/health
+
+###
+
+
+### ─── Transaction Service (Go :8083) ──────────────────────────
+
+### Criar Transferência BRL entre contas
+POST http://localhost:8083/api/transactions
+Content-Type: application/json
+
+{
+  "sourceAccountId": "account-joao-001",
+  "targetAccountId": "account-maria-002",
+  "transactionType": "TRANSFER_OUT",
+  "amount": 100.00,
+  "currency": "BRL",
+  "description": "Pagamento aluguel"
+}
+
+###
+
+### Criar Depósito USD
+POST http://localhost:8083/api/transactions
+Content-Type: application/json
+
+{
+  "sourceAccountId": "account-joao-001",
+  "transactionType": "DEPOSIT",
+  "amount": 500.00,
+  "currency": "USD",
+  "description": "Depósito em dólares"
+}
+
+###
+
+### Criar Câmbio BRL → USD
+POST http://localhost:8083/api/transactions
+Content-Type: application/json
+
+{
+  "sourceAccountId": "account-joao-001",
+  "transactionType": "CURRENCY_EXCHANGE",
+  "amount": 1000.00,
+  "currency": "BRL",
+  "targetCurrency": "USD",
+  "description": "Câmbio para viagem"
+}
+
+###
+
+### Criar Saque
+POST http://localhost:8083/api/transactions
+Content-Type: application/json
+
+{
+  "sourceAccountId": "account-maria-002",
+  "transactionType": "WITHDRAWAL",
+  "amount": 200.00,
+  "currency": "EUR",
+  "description": "Saque ATM"
+}
+
+###
+
+
+### ─── Orchestrator Service (Java :8080) ─────────────────────
+
+### Iniciar Saga via Orchestrator
+POST http://localhost:8080/api/saga/transaction
+Content-Type: application/json
+
+{
+  "sourceAccountId": "account-joao-001",
+  "targetAccountId": "account-maria-002",
+  "transactionType": "TRANSFER_OUT",
+  "amount": 50.00,
+  "currency": "BRL",
+  "description": "Transferência via saga"
+}
+
+###
+
+### Listar todas as sagas
+GET http://localhost:8080/api/saga/all
+
+###
+
+### Status de uma saga (substituir {sagaId})
+GET http://localhost:8080/api/saga/status/{sagaId}
+
+###
+
+### Outbox — Eventos pendentes
+GET http://localhost:8080/api/outbox/pending
+
+###
+
+### Outbox — Eventos com falha
+GET http://localhost:8080/api/outbox/failed
+
+###
+
+### Outbox — Estatísticas
+GET http://localhost:8080/api/outbox/stats
+
+###
+
+### Outbox — Eventos de uma saga
+GET http://localhost:8080/api/outbox/saga/{sagaId}
+
+###
+
+### Métricas Prometheus
+GET http://localhost:8080/actuator/prometheus
+
+###
+
+
+### ─── Account Service (Java :8081) ──────────────────────────
+
+### Listar todas as contas
+GET http://localhost:8081/api/accounts
+
+###
+
+### Detalhes da conta do João (com saldos)
+GET http://localhost:8081/api/accounts/account-joao-001
+
+###
+
+### Detalhes da conta da Maria
+GET http://localhost:8081/api/accounts/account-maria-002
+
+###
+
+### Métricas Prometheus
+GET http://localhost:8081/actuator/prometheus
+
+###
+
+
+### ─── Ledger Service (Java :8082) ──────────────────────────
+
+### Listar entradas do ledger
+GET http://localhost:8082/api/ledger/entries
+
+###
+
+### Entradas do ledger por conta
+GET http://localhost:8082/api/ledger/entries/account-joao-001
+
+###
+
+### Métricas Prometheus
+GET http://localhost:8082/actuator/prometheus
+
+###
+
+
+### ─── Exchange Service (Python :8084) ──────────────────────
+
+### Todas as taxas de câmbio
+GET http://localhost:8084/api/exchange/rates
+
+###
+
+### Taxa BRL → USD
+GET http://localhost:8084/api/exchange/rate/BRL/USD
+
+###
+
+### Taxa EUR → GBP
+GET http://localhost:8084/api/exchange/rate/EUR/GBP
+
+###
+
+### Converter 1000 BRL para USD
+GET http://localhost:8084/api/exchange/convert/BRL/USD/1000
+
+###
+
+### Converter 500 EUR para GBP
+GET http://localhost:8084/api/exchange/convert/EUR/GBP/500
+
+###
+
+### Métricas Prometheus
+GET http://localhost:8084/metrics
+
+###
+
+
+### ─── Statement Service (Node.js :8085) ────────────────────
+
+### Extrato completo do João
+GET http://localhost:8085/api/statements/account-joao-001
+
+###
+
+### Extrato do João filtrado por BRL
+GET http://localhost:8085/api/statements/account-joao-001?currency=BRL
+
+###
+
+### Extrato do João paginado
+GET http://localhost:8085/api/statements/account-joao-001?limit=10&offset=0
+
+###
+
+### Extrato completo da Maria
+GET http://localhost:8085/api/statements/account-maria-002
+
+###
+
+### Saldos da Maria
+GET http://localhost:8085/api/statements/account-maria-002/balances
+
+###
+
+### Métricas Prometheus
+GET http://localhost:8085/metrics
+
+###
+
+
+### ─── Observabilidade ─────────────────────────────────────
+
+### Prometheus — Targets
+GET http://localhost:9090/api/v1/targets
+
+###
+
+### Prometheus — Query: serviços UP
+GET http://localhost:9090/api/v1/query?query=up
+
+###
+
+### Prometheus — Query: sagas totais
+GET http://localhost:9090/api/v1/query?query=saga_total
+
+###
+
+### Prometheus — Query: outbox pendentes
+GET http://localhost:9090/api/v1/query?query=outbox_events_pending
+
+###

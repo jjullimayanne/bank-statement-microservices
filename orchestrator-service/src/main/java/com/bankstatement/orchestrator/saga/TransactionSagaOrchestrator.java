@@ -5,6 +5,7 @@ import com.bankstatement.common.dto.TransactionRequest;
 import com.bankstatement.common.enums.SagaStatus;
 import com.bankstatement.common.enums.TransactionType;
 import com.bankstatement.common.events.*;
+import com.bankstatement.common.outbox.OutboxService;
 import com.bankstatement.orchestrator.model.SagaInstance;
 import com.bankstatement.orchestrator.repository.SagaInstanceRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -27,13 +28,16 @@ public class TransactionSagaOrchestrator {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final SagaInstanceRepository sagaRepository;
     private final ObjectMapper objectMapper;
+    private final OutboxService outboxService;
 
     public TransactionSagaOrchestrator(KafkaTemplate<String, String> kafkaTemplate,
                                        SagaInstanceRepository sagaRepository,
-                                       ObjectMapper objectMapper) {
+                                       ObjectMapper objectMapper,
+                                       OutboxService outboxService) {
         this.kafkaTemplate = kafkaTemplate;
         this.sagaRepository = sagaRepository;
         this.objectMapper = objectMapper;
+        this.outboxService = outboxService;
     }
 
     @Transactional
@@ -211,12 +215,14 @@ public class TransactionSagaOrchestrator {
         log.info("[SAGA-{}] Compensation started: {}", saga.getSagaId(), reason);
     }
 
+    /**
+     * Outbox Pattern: instead of publishing directly to Kafka, saves the event
+     * to the outbox table in the SAME database transaction. The OutboxPublisher
+     * scheduler will pick it up and publish to Kafka asynchronously.
+     * If Kafka is down, events are safely stored in PostgreSQL and retried.
+     */
     private <T> void publishEvent(String topic, String key, T event) {
-        try {
-            String json = objectMapper.writeValueAsString(event);
-            kafkaTemplate.send(topic, key, json);
-        } catch (JsonProcessingException e) {
-            log.error("Error serializing event for topic {}", topic, e);
-        }
+        outboxService.saveEvent(topic, key, event, key);
+        log.info("[OUTBOX] Event saved to outbox for topic={}, key={}", topic, key);
     }
 }

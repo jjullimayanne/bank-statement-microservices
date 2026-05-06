@@ -32,3 +32,8 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+article/article.aux
+article/article.bbl
+article/article.blg
+article/article.log
+article/article.out

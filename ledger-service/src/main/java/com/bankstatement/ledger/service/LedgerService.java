@@ -4,6 +4,7 @@ import com.bankstatement.common.config.KafkaTopics;
 import com.bankstatement.common.enums.TransactionType;
 import com.bankstatement.common.events.LedgerConfirmedEvent;
 import com.bankstatement.common.events.TransactionEvent;
+import com.bankstatement.common.outbox.OutboxService;
 import com.bankstatement.ledger.model.LedgerEntry;
 import com.bankstatement.ledger.repository.LedgerEntryRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -23,13 +24,16 @@ public class LedgerService {
     private final LedgerEntryRepository ledgerRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    private final OutboxService outboxService;
 
     public LedgerService(LedgerEntryRepository ledgerRepository,
                          KafkaTemplate<String, String> kafkaTemplate,
-                         ObjectMapper objectMapper) {
+                         ObjectMapper objectMapper,
+                         OutboxService outboxService) {
         this.ledgerRepository = ledgerRepository;
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
+        this.outboxService = outboxService;
     }
 
     @KafkaListener(topics = KafkaTopics.LEDGER_COMMANDS, groupId = "ledger-group")
@@ -72,8 +76,13 @@ public class LedgerService {
             confirmed.setCurrency(entry.getCurrency());
             confirmed.setLedgerEntryId(entry.getEntryId());
 
-            String json = objectMapper.writeValueAsString(confirmed);
-            kafkaTemplate.send(KafkaTopics.LEDGER_CONFIRMED, event.getSagaId(), json);
+            outboxService.saveEvent(
+                    KafkaTopics.LEDGER_CONFIRMED,
+                    event.getSagaId(),
+                    confirmed,
+                    event.getSagaId()
+            );
+            log.info("[OUTBOX] Ledger confirmed event saved to outbox for saga {}", event.getSagaId());
 
         } catch (JsonProcessingException e) {
             log.error("Error processing ledger command", e);

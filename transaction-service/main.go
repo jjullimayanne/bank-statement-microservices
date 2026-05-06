@@ -6,11 +6,18 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+)
+
+var (
+	transactionsPublished int64
+	transactionsFailed    int64
+	requestCount          int64
 )
 
 type TransactionRequest struct {
@@ -73,6 +80,7 @@ func main() {
 	r.GET("/api/transactions/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "UP", "service": "transaction-service"})
 	})
+	r.GET("/api/transactions/metrics", handleMetrics)
 
 	log.Printf("Transaction service starting on port %s", port)
 	if err := r.Run(":" + port); err != nil {
@@ -119,6 +127,8 @@ func handleCreateTransaction(c *gin.Context) {
 	}
 
 	producer.Flush(5000)
+	atomic.AddInt64(&transactionsPublished, 1)
+	atomic.AddInt64(&requestCount, 1)
 
 	log.Printf("[TRANSACTION] Published event %s: %s %v %s from %s",
 		event.EventID, event.TransactionType, event.Amount, event.Currency, event.SourceAccountID)
@@ -129,6 +139,28 @@ func handleCreateTransaction(c *gin.Context) {
 		"message":   "Transaction event published to broker",
 		"timestamp": event.Timestamp,
 	})
+}
+
+func handleMetrics(c *gin.Context) {
+	published := atomic.LoadInt64(&transactionsPublished)
+	failed := atomic.LoadInt64(&transactionsFailed)
+	requests := atomic.LoadInt64(&requestCount)
+
+	metrics := fmt.Sprintf(`# HELP transactions_published_total Total transactions published to Kafka
+# TYPE transactions_published_total counter
+transactions_published_total %d
+# HELP transactions_failed_total Total failed transaction publications
+# TYPE transactions_failed_total counter
+transactions_failed_total %d
+# HELP http_requests_total Total HTTP requests received
+# TYPE http_requests_total counter
+http_requests_total{method="POST",status="200"} %d
+# HELP up Service health status
+# TYPE up gauge
+up 1
+`, published, failed, requests)
+
+	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(metrics))
 }
 
 func corsMiddleware() gin.HandlerFunc {

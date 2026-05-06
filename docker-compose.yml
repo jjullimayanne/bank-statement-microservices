@@ -15,12 +15,9 @@ services:
       - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
       - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
       - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
-      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
-      - --advertise-schema-registry-addr internal://redpanda:8081,external://localhost:18081
     ports:
       - "19092:19092"
       - "18082:18082"
-      - "18081:18081"
     healthcheck:
       test: ["CMD", "rpk", "cluster", "health"]
       interval: 10s
@@ -191,6 +188,43 @@ services:
       redis:
         condition: service_healthy
 
+  # ─── Observability ──────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+    depends_on:
+      - orchestrator-service
+      - account-service
+      - ledger-service
+      - transaction-service
+      - exchange-service
+      - statement-service
+
+  grafana:
+    image: grafana/grafana:10.4.1
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
   # ─── Frontend ──────────────────────────────────────────
 
   frontend:
@@ -211,3 +245,5 @@ services:
 volumes:
   postgres_data:
   mongo_data:
+  prometheus_data:
+  grafana_data:
