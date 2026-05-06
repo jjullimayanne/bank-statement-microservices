@@ -1,0 +1,168 @@
+\documentclass[12pt]{article}
+
+\usepackage{sbc-template}
+\usepackage{graphicx,url}
+\usepackage[brazil]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{enumitem}
+\usepackage{placeins}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!10},
+}
+
+\sloppy
+
+\title{Extrato Banc\'{a}rio Multiconta e Multimoeda:\\Uma Implementa\c{c}\~{a}o com Microsservi\c{c}os e Saga Orquestrado}
+
+\author{Julli Mayanne Ara\'{u}jo\inst{1}}
+
+\address{
+  Universidade Federal do Piau\'{i} (UFPI)\\
+  Teresina -- PI -- Brasil
+  \email{jullimayanne9@gmail.com}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper presents a functional demonstration of a multi-account, multi-currency bank statement system built on a polyglot microservices architecture. The system employs the Orchestrated Saga pattern for distributed transaction coordination, CQRS for read/write separation, Event Sourcing for immutable audit trails, and double-entry bookkeeping for accounting integrity. Six microservices -- implemented in Java, Go, Python, and Node.js -- communicate asynchronously via Redpanda (Kafka-compatible broker), each with an independently chosen database (PostgreSQL, MongoDB, or Redis). A chaos testing suite validates resilience under concurrent load and service failures. The complete implementation is open-source and reproducible via Docker Compose\footnote{Repository: \url{https://github.com/jjullimayanne/bank-statement-microservices}}.
+\end{abstract}
+
+\begin{resumo}
+Este artigo apresenta uma demonstra\c{c}\~{a}o funcional de um sistema de extrato banc\'{a}rio multiconta e multimoeda constru\'{i}do sobre uma arquitetura pol\'{i}glota de microsservi\c{c}os. O sistema emprega o padr\~{a}o Saga Orquestrado para coordena\c{c}\~{a}o de transa\c{c}\~{o}es distribu\'{i}das, CQRS para separa\c{c}\~{a}o de leitura e escrita, Event Sourcing para trilhas de auditoria imut\'{a}veis e contabilidade de dupla-entrada. Seis microsservi\c{c}os -- implementados em Java, Go, Python e Node.js -- comunicam-se assincronamente via Redpanda (broker compat\'{i}vel com Kafka), cada um com banco de dados independente (PostgreSQL, MongoDB ou Redis). Uma su\'{i}te de testes de caos valida a resili\^{e}ncia sob carga concorrente e falhas de servi\c{c}o. A implementa\c{c}\~{a}o completa \'{e} open-source e reproduz\'{i}vel via Docker Compose.
+\end{resumo}
+
+
+\section{Introdu\c{c}\~{a}o}
+
+Sistemas banc\'{a}rios modernos enfrentam o desafio de gerenciar m\'{u}ltiplas contas e moedas simultaneamente, mantendo consist\^{e}ncia e rastreabilidade em opera\c{c}\~{o}es distribu\'{i}das \cite{kleppmann2017}. A arquitetura monol\'{i}tica tradicional, embora funcional para cen\'{a}rios simples, apresenta limita\c{c}\~{o}es de escalabilidade e evolu\c{c}\~{a}o independente quando a complexidade do dom\'{i}nio cresce.
+
+Este trabalho apresenta uma implementa\c{c}\~{a}o funcional de um sistema de extrato banc\'{a}rio multiconta e multimoeda utilizando uma arquitetura de microsservi\c{c}os pol\'{i}glota. A solu\c{c}\~{a}o coordena transa\c{c}\~{o}es distribu\'{i}das atrav\'{e}s do padr\~{a}o \textbf{Saga Orquestrado} \cite{garcia2018,richardson2018}, garantindo consist\^{e}ncia eventual sem o uso de transa\c{c}\~{o}es distribu\'{i}das tradicionais (2PC).
+
+A contribui\c{c}\~{a}o principal \'{e} a demonstra\c{c}\~{a}o pr\'{a}tica da integra\c{c}\~{a}o de m\'{u}ltiplos padr\~{o}es arquiteturais -- CQRS, Event Sourcing, dupla-entrada cont\'{a}bil e banco-por-servi\c{c}o -- em um sistema que pode ser reproduzido com um \'{u}nico comando (\texttt{docker-compose up}). Al\'{e}m disso, cada microsservi\c{c}o utiliza a linguagem de programa\c{c}\~{a}o mais adequada para sua responsabilidade, demonstrando a heterogeneidade que a arquitetura de microsservi\c{c}os viabiliza \cite{newman2015}.
+
+O uso de ferramentas de IA generativa (Devin, da Cognition AI) foi empregado como aux\'{i}lio na gera\c{c}\~{a}o de c\'{o}digo boilerplate e estrutura\c{c}\~{a}o do artigo, sob revis\~{a}o e valida\c{c}\~{a}o integral dos autores humanos.
+
+
+\section{Arquitetura Proposta}
+
+O sistema \'{e} composto por seis microsservi\c{c}os, um message broker e um frontend de demonstra\c{c}\~{a}o, conforme a Tabela~\ref{tab:services}.
+
+\begin{table}[h]
+\centering
+\caption{Microsservi\c{c}os e suas caracter\'{i}sticas}
+\label{tab:services}
+\begin{tabular}{|l|l|l|l|}
+\hline
+\textbf{Servi\c{c}o} & \textbf{Stack} & \textbf{Banco} & \textbf{Responsabilidade} \\
+\hline
+Orchestrator & Java/Spring Boot & PostgreSQL & Coordena\c{c}\~{a}o da Saga \\
+Account & Java/Spring Boot & PostgreSQL & Gest\~{a}o de contas \\
+Ledger & Java/Spring Boot & PostgreSQL & Dupla-entrada cont\'{a}bil \\
+Transaction & Go/Gin & Stateless & Ingest\~{a}o de eventos \\
+Exchange & Python/FastAPI & MongoDB & C\^{a}mbio de moedas \\
+Statement & Node.js/Express & MongoDB+Redis & Extrato (CQRS) \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Padr\~{a}o Saga Orquestrado}
+
+O Orchestrator Service atua como coordenador central das transa\c{c}\~{o}es distribu\'{i}das. Ao receber uma solicita\c{c}\~{a}o de transa\c{c}\~{a}o, ele cria uma inst\^{a}ncia de saga e coordena a execu\c{c}\~{a}o sequencial dos passos: (1)~valida\c{c}\~{a}o da conta de origem, (2)~convers\~{a}o cambial (se necess\'{a}rio), (3)~registro no ledger com dupla-entrada, e (4)~atualiza\c{c}\~{a}o do modelo de leitura do extrato. Cada passo \'{e} executado por um microsservi\c{c}o independente que consome comandos de t\'{o}picos Kafka e publica respostas em t\'{o}picos de reply \cite{richardson2018}.
+
+Em caso de falha em qualquer etapa, o orquestrador inicia automaticamente comandos de compensa\c{c}\~{a}o nos servi\c{c}os que j\'{a} completaram seus passos, revertendo a transa\c{c}\~{a}o de forma consistente.
+
+\subsection{CQRS e Event Sourcing}
+
+O sistema separa explicitamente os caminhos de escrita e leitura \cite{kleppmann2017}. O \textbf{Ledger Service} funciona como um event store imut\'{a}vel (append-only), registrando cada transa\c{c}\~{a}o como um par d\'{e}bito/cr\'{e}dito seguindo o princ\'{i}pio de dupla-entrada cont\'{a}bil. O \textbf{Statement Service} mant\'{e}m um modelo de leitura otimizado em MongoDB, atualizado assincronamente a partir dos eventos confirmados pelo ledger, com cache Redis para consultas frequentes.
+
+Esta separa\c{c}\~{a}o permite que o modelo de leitura seja otimizado para consultas complexas (filtros por moeda, per\'{i}odo, tipo de transa\c{c}\~{a}o) sem impactar a performance do caminho de escrita.
+
+\subsection{Database per Service}
+
+Seguindo o princ\'{i}pio de banco-de-dados-por-servi\c{c}o \cite{newman2015}, cada microsservi\c{c}o possui seu pr\'{o}prio armazenamento, escolhido conforme a necessidade de garantias ACID:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{PostgreSQL (ACID):} Orchestrator, Account e Ledger -- servi\c{c}os onde consist\^{e}ncia forte e precis\~{a}o cont\'{a}bil s\~{a}o obrigat\'{o}rias.
+  \item \textbf{MongoDB (NoSQL):} Exchange e Statement -- modelos de refer\^{e}ncia e leitura, otimizados para consultas r\'{a}pidas sem necessidade de transa\c{c}\~{o}es ACID.
+  \item \textbf{Redis:} Cache do Statement Service para extratos frequentes.
+  \item \textbf{Stateless:} Transaction Service apenas valida e publica eventos no broker.
+\end{itemize}
+
+\subsection{Comunica\c{c}\~{a}o Ass\'{i}ncrona}
+
+Toda comunica\c{c}\~{a}o entre servi\c{c}os ocorre via \textbf{Redpanda}, um broker compat\'{i}vel com o protocolo Apache Kafka. Foram definidos 9 t\'{o}picos Kafka para o fluxo completo da saga: \texttt{transaction-events}, \texttt{account-validation}, \texttt{account-validation-reply}, \texttt{exchange-rate-request}, \texttt{exchange-rate-reply}, \texttt{ledger-commands}, \texttt{ledger-confirmed}, \texttt{statement-updates} e \texttt{compensation-commands}.
+
+O uso de Redpanda em vez de Apache Kafka traz vantagens de menor lat\^{e}ncia e simplicidade operacional, sem necessidade de ZooKeeper, mantendo total compatibilidade com clientes Kafka existentes.
+
+
+\section{Implementa\c{c}\~{a}o}
+
+\subsection{Stack Pol\'{i}glota}
+
+Uma das vantagens fundamentais da arquitetura de microsservi\c{c}os \'{e} a possibilidade de cada servi\c{c}o utilizar a melhor linguagem para seu dom\'{i}nio \cite{newman2015}. O \textbf{Transaction Service} foi implementado em Go (Gin framework) por sua alta performance em I/O concorrente e baixo consumo de mem\'{o}ria -- ideal para ingest\~{a}o de eventos em alta vaz\~{a}o. O \textbf{Exchange Service} utiliza Python (FastAPI) pela simplicidade na integra\c{c}\~{a}o com APIs externas de c\^{a}mbio e MongoDB. O \textbf{Statement Service} foi constru\'{i}do em Node.js por seu modelo de I/O ass\'{i}ncrono e integra\c{c}\~{a}o nativa com MongoDB e Redis. Os servi\c{c}os cr\'{i}ticos (Orchestrator, Account, Ledger) utilizam \textbf{Java com Spring Boot}, aproveitando o ecossistema maduro de JPA/Hibernate e Spring Kafka para garantias transacionais robustas.
+
+\subsection{Dupla-Entrada Cont\'{a}bil}
+
+O Ledger Service implementa o princ\'{i}pio fundamental da contabilidade de dupla-entrada: toda transa\c{c}\~{a}o gera simultaneamente um d\'{e}bito em uma conta e um cr\'{e}dito em outra. Por exemplo, em uma transfer\^{e}ncia de R\$~1.000 de Jo\~{a}o para Maria, o ledger registra: d\'{e}bito na conta de Jo\~{a}o e cr\'{e}dito na conta de Maria, ambos com o mesmo valor e vinculados ao mesmo \texttt{sagaId}. Este princ\'{i}pio garante que o balan\c{c}o total do sistema sempre some zero, facilitando reconcilia\c{c}\~{a}o e auditoria.
+
+\subsection{Idempot\^{e}ncia}
+
+Cada evento carrega um \texttt{idempotencyKey} \'{u}nico. O Ledger Service verifica esta chave antes de processar, garantindo que eventos duplicados (cen\'{a}rio comum em sistemas distribu\'{i}dos com retry autom\'{a}tico) n\~{a}o resultem em registros duplicados no ledger.
+
+\subsection{Infraestrutura como C\'{o}digo}
+
+Toda a infraestrutura \'{e} definida em um arquivo \texttt{docker-compose.yml} que orquestra: Redpanda (broker), PostgreSQL (3 bancos l\'{o}gicos), MongoDB, Redis, os 6 microsservi\c{c}os e o frontend. O comando \texttt{docker-compose up --build} inicializa o sistema completo, incluindo a cria\c{c}\~{a}o autom\'{a}tica de t\'{o}picos Kafka e seed de dados de demonstra\c{c}\~{a}o (duas contas mockadas com saldos em BRL, USD, EUR e GBP).
+
+
+\section{Testes de Caos e Valida\c{c}\~{a}o}
+
+Para validar a resili\^{e}ncia da arquitetura, foi desenvolvida uma su\'{i}te de testes de caos em Python que simula cen\'{a}rios adversos reais:
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Flood Test:} Envio de centenas de transa\c{c}\~{o}es simult\^{a}neas para avaliar throughput e lat\^{e}ncia sob carga.
+  \item \textbf{Transfer\^{e}ncias Concorrentes:} M\'{u}ltiplas transfer\^{e}ncias simult\^{a}neas entre as mesmas contas para verificar consist\^{e}ncia de saldo.
+  \item \textbf{Multi-Currency Storm:} C\^{a}mbios cruzados concorrentes (BRL$\rightarrow$USD$\rightarrow$EUR$\rightarrow$GBP) para estressar o Exchange Service.
+  \item \textbf{Service Kill:} Interrup\c{c}\~{a}o de um container durante processamento de saga para verificar se a compensa\c{c}\~{a}o funciona corretamente.
+  \item \textbf{Reconcilia\c{c}\~{a}o:} Compara\c{c}\~{a}o autom\'{a}tica de saldos entre Account Service, Ledger e Statement Service ap\'{o}s as baterias de teste.
+\end{itemize}
+
+A su\'{i}te utiliza requisi\c{c}\~{o}es HTTP ass\'{i}ncronas (httpx) com workers configur\'{a}veis e apresenta m\'{e}tricas de throughput, lat\^{e}ncia m\'{e}dia, percentil 95 e taxa de sucesso para cada cen\'{a}rio.
+
+
+\section{Demonstra\c{c}\~{a}o}
+
+O frontend mobile-first, constru\'{i}do em React/Next.js, oferece uma interface simplificada para demonstra\c{c}\~{a}o do sistema:
+
+\begin{enumerate}[noitemsep]
+  \item \textbf{Tela de Login:} Sele\c{c}\~{a}o entre duas contas mockadas (Jo\~{a}o -- BRL/USD/EUR e Maria -- BRL/EUR/GBP).
+  \item \textbf{Painel de Saldos:} Visualiza\c{c}\~{a}o dos saldos multimoeda da conta selecionada.
+  \item \textbf{Simular Transfer\^{e}ncia:} Formul\'{a}rio para publicar evento no Kafka, com op\c{c}\~{o}es de transfer\^{e}ncia, dep\'{o}sito, saque e c\^{a}mbio.
+  \item \textbf{Extrato Multimoeda:} Visualiza\c{c}\~{a}o do extrato com filtro por moeda, mostrando cr\'{e}ditos e d\'{e}bitos.
+  \item \textbf{Saga Status:} Acompanhamento em tempo real dos passos da saga orquestrada, com polling autom\'{a}tico at\'{e} conclus\~{a}o.
+\end{enumerate}
+
+O frontend atua como proxy reverso via Next.js rewrites, roteando requisi\c{c}\~{o}es para os microsservi\c{c}os correspondentes sem expor portas individuais ao usu\'{a}rio final.
+
+
+\section{Conclus\~{a}o e Trabalhos Futuros}
+
+Este trabalho demonstrou a viabilidade pr\'{a}tica de um sistema de extrato banc\'{a}rio multiconta e multimoeda utilizando uma arquitetura de microsservi\c{c}os pol\'{i}glota com Saga Orquestrado. A implementa\c{c}\~{a}o integra padr\~{o}es consolidados -- CQRS, Event Sourcing, dupla-entrada cont\'{a}bil e database-per-service -- em um sistema reproduz\'{i}vel e test\'{a}vel.
+
+A suite de testes de caos validou que a arquitetura mant\'{e}m consist\^{e}ncia sob carga concorrente e que o mecanismo de compensa\c{c}\~{a}o da saga funciona adequadamente em cen\'{a}rios de falha. A escolha de banco de dados por servi\c{c}o (ACID vs NoSQL) demonstrou que nem todos os microsservi\c{c}os necessitam de garantias transacionais fortes, e que a sele\c{c}\~{a}o adequada impacta positivamente a performance.
+
+Como trabalhos futuros, identificamos: (i)~implementa\c{c}\~{a}o de autentica\c{c}\~{a}o e autoriza\c{c}\~{a}o (OAuth 2.0), (ii)~observabilidade distribu\'{i}da com OpenTelemetry e Jaeger, (iii)~integra\c{c}\~{a}o com APIs reais de c\^{a}mbio, (iv)~deployment em Kubernetes com service mesh (Istio), e (v)~implementa\c{c}\~{a}o de event replay completo a partir do ledger para reconstru\c{c}\~{a}o do estado do sistema.
+
+
+\bibliographystyle{sbc}
+\bibliography{references}
+
+\end{document}
