@@ -1,6 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import SendIcon from '@mui/icons-material/Send';
+import BoltIcon from '@mui/icons-material/Bolt';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import SavingsIcon from '@mui/icons-material/Savings';
+import CallReceivedIcon from '@mui/icons-material/CallReceived';
+import CallMadeIcon from '@mui/icons-material/CallMade';
 
 const MOCK_ACCOUNTS = [
   {
@@ -59,11 +69,6 @@ function getGreeting() {
 
 function getInitials(name) {
   return name.split(' ').map(n => n[0]).join('').slice(0, 2);
-}
-
-function getTxIcon(direction) {
-  if (direction === 'CREDIT') return '↓';
-  return '↑';
 }
 
 function getTxLabel(entry) {
@@ -282,19 +287,19 @@ export default function Home() {
       {/* Quick Actions */}
       <div className="quick-actions">
         <button className="quick-action" onClick={() => { setTransferForm({...transferForm, transactionType: 'TRANSFER_OUT'}); setShowTransferModal(true); }}>
-          <div className="quick-action-icon transfer">↗</div>
+          <div className="quick-action-icon transfer"><SendIcon /></div>
           <span className="quick-action-label">Transferir</span>
         </button>
         <button className="quick-action" onClick={() => { setTransferForm({...transferForm, transactionType: 'DEPOSIT'}); setShowTransferModal(true); }}>
-          <div className="quick-action-icon deposit">↓</div>
+          <div className="quick-action-icon deposit"><SavingsIcon /></div>
           <span className="quick-action-label">Depositar</span>
         </button>
         <button className="quick-action" onClick={() => { setTransferForm({...transferForm, transactionType: 'CURRENCY_EXCHANGE'}); setShowTransferModal(true); }}>
-          <div className="quick-action-icon exchange">⇄</div>
+          <div className="quick-action-icon exchange"><CurrencyExchangeIcon /></div>
           <span className="quick-action-label">Câmbio</span>
         </button>
         <button className="quick-action" onClick={() => { setTransferForm({...transferForm, transactionType: 'WITHDRAWAL'}); setShowTransferModal(true); }}>
-          <div className="quick-action-icon pix">↑</div>
+          <div className="quick-action-icon pix"><AccountBalanceWalletIcon /></div>
           <span className="quick-action-label">Sacar</span>
         </button>
       </div>
@@ -350,7 +355,7 @@ export default function Home() {
                   {entries.map((entry, i) => (
                     <div key={i} className="tx-item">
                       <div className={`tx-icon ${entry.direction === 'CREDIT' ? 'credit' : 'debit'}`}>
-                        {getTxIcon(entry.direction)}
+                        {entry.direction === 'CREDIT' ? <CallReceivedIcon fontSize="small" /> : <CallMadeIcon fontSize="small" />}
                       </div>
                       <div className="tx-info">
                         <div className="tx-desc">{getTxLabel(entry)}</div>
@@ -371,7 +376,7 @@ export default function Home() {
               ))
             ) : !loading && (
               <div className="empty-state">
-                <div className="empty-state-icon">📋</div>
+                <div className="empty-state-icon"><ReceiptLongIcon sx={{ fontSize: 48, color: '#9aa0a6' }} /></div>
                 <div className="empty-state-text">
                   Nenhuma movimentação encontrada.<br />
                   Use os botões acima para simular uma transação.
@@ -427,7 +432,7 @@ export default function Home() {
             </>
           ) : (
             <div className="empty-state">
-              <div className="empty-state-icon">⚡</div>
+              <div className="empty-state-icon"><BoltIcon sx={{ fontSize: 48, color: '#9aa0a6' }} /></div>
               <div className="empty-state-text">
                 Nenhuma saga ativa.<br />
                 Inicie uma transferência para acompanhar o fluxo em tempo real.
@@ -440,15 +445,15 @@ export default function Home() {
       {/* Bottom Navigation */}
       <nav className="bottom-nav">
         <button className={`nav-item ${activeTab === 'extrato' ? 'active' : ''}`} onClick={() => setActiveTab('extrato')}>
-          <span className="nav-item-icon">📊</span>
+          <span className="nav-item-icon"><ReceiptLongIcon fontSize="small" /></span>
           <span className="nav-item-label">Extrato</span>
         </button>
         <button className="nav-item" onClick={() => setShowTransferModal(true)}>
-          <span className="nav-item-icon">💸</span>
+          <span className="nav-item-icon"><SendIcon fontSize="small" /></span>
           <span className="nav-item-label">Transferir</span>
         </button>
         <button className={`nav-item ${activeTab === 'saga' ? 'active' : ''}`} onClick={() => setActiveTab('saga')}>
-          <span className="nav-item-icon">⚡</span>
+          <span className="nav-item-icon"><BoltIcon fontSize="small" /></span>
           <span className="nav-item-label">Saga</span>
         </button>
       </nav>
