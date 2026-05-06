@@ -33,11 +33,11 @@
 \maketitle
 
 \begin{abstract}
-This paper presents a functional demonstration of a multi-account, multi-currency bank statement system built on a polyglot microservices architecture. The system employs the Orchestrated Saga pattern for distributed transaction coordination, CQRS for read/write separation, Event Sourcing for immutable audit trails, and double-entry bookkeeping for accounting integrity. Six microservices -- implemented in Java, Go, Python, and Node.js -- communicate asynchronously via Redpanda (Kafka-compatible broker), each with an independently chosen database (PostgreSQL, MongoDB, or Redis). A chaos testing suite validates resilience under concurrent load and service failures. The complete implementation is open-source and reproducible via Docker Compose\footnote{Repository: \url{https://github.com/jjullimayanne/bank-statement-microservices}}.
+This paper presents a functional demonstration of a multi-account, multi-currency bank statement system built on a polyglot microservices architecture. The system employs the Orchestrated Saga pattern for distributed transaction coordination, CQRS for read/write separation, Event Sourcing for immutable audit trails, the Transactional Outbox pattern for reliable event delivery, and double-entry bookkeeping for accounting integrity. Six microservices -- implemented in Java, Go, Python, and Node.js -- communicate asynchronously via Redpanda (Kafka-compatible broker), each with an independently chosen database (PostgreSQL, MongoDB, or Redis). A chaos testing suite validates resilience under concurrent load and service failures. The complete implementation is open-source and reproducible via Docker Compose\footnote{Repository: \url{https://github.com/jjullimayanne/bank-statement-microservices}}.
 \end{abstract}
 
 \begin{resumo}
-Este artigo apresenta uma demonstra\c{c}\~{a}o funcional de um sistema de extrato banc\'{a}rio multiconta e multimoeda constru\'{i}do sobre uma arquitetura pol\'{i}glota de microsservi\c{c}os. O sistema emprega o padr\~{a}o Saga Orquestrado para coordena\c{c}\~{a}o de transa\c{c}\~{o}es distribu\'{i}das, CQRS para separa\c{c}\~{a}o de leitura e escrita, Event Sourcing para trilhas de auditoria imut\'{a}veis e contabilidade de dupla-entrada. Seis microsservi\c{c}os -- implementados em Java, Go, Python e Node.js -- comunicam-se assincronamente via Redpanda (broker compat\'{i}vel com Kafka), cada um com banco de dados independente (PostgreSQL, MongoDB ou Redis). Uma su\'{i}te de testes de caos valida a resili\^{e}ncia sob carga concorrente e falhas de servi\c{c}o. A implementa\c{c}\~{a}o completa \'{e} open-source e reproduz\'{i}vel via Docker Compose.
+Este artigo apresenta uma demonstra\c{c}\~{a}o funcional de um sistema de extrato banc\'{a}rio multiconta e multimoeda constru\'{i}do sobre uma arquitetura pol\'{i}glota de microsservi\c{c}os. O sistema emprega o padr\~{a}o Saga Orquestrado para coordena\c{c}\~{a}o de transa\c{c}\~{o}es distribu\'{i}das, CQRS para separa\c{c}\~{a}o de leitura e escrita, Event Sourcing para trilhas de auditoria imut\'{a}veis, o padr\~{a}o Transactional Outbox para entrega confi\'{a}vel de eventos e contabilidade de dupla-entrada. Seis microsservi\c{c}os -- implementados em Java, Go, Python e Node.js -- comunicam-se assincronamente via Redpanda (broker compat\'{i}vel com Kafka), cada um com banco de dados independente (PostgreSQL, MongoDB ou Redis). Uma su\'{i}te de testes de caos valida a resili\^{e}ncia sob carga concorrente e falhas de servi\c{c}o. A implementa\c{c}\~{a}o completa \'{e} open-source e reproduz\'{i}vel via Docker Compose.
 \end{resumo}
 
 
@@ -118,6 +118,10 @@ O Ledger Service implementa o princ\'{i}pio fundamental da contabilidade de dupl
 
 Cada evento carrega um \texttt{idempotencyKey} \'{u}nico. O Ledger Service verifica esta chave antes de processar, garantindo que eventos duplicados (cen\'{a}rio comum em sistemas distribu\'{i}dos com retry autom\'{a}tico) n\~{a}o resultem em registros duplicados no ledger.
 
+\subsection{Padr\~{a}o Outbox}
+
+Para garantir entrega confi\'{a}vel de eventos mesmo em cen\'{a}rios de falha do message broker, os servi\c{c}os Java implementam o \textbf{Transactional Outbox Pattern}. Em vez de publicar eventos diretamente no Kafka, cada servi\c{c}o persiste o evento em uma tabela \texttt{outbox\_events} no PostgreSQL \textbf{na mesma transa\c{c}\~{a}o} que a opera\c{c}\~{a}o de neg\'{o}cio. Um agendador (\textit{scheduler}) executa periodicamente, lendo eventos pendentes da tabela e publicando-os no Kafka. Se o broker estiver indispon\'{i}vel, os eventos permanecem seguros no banco e s\~{a}o republicados quando a conex\~{a}o for restabelecida, com controle de retries e m\'{a}ximo de tentativas configur\'{a}vel.
+
 \subsection{Infraestrutura como C\'{o}digo}
 
 Toda a infraestrutura \'{e} definida em um arquivo \texttt{docker-compose.yml} que orquestra: Redpanda (broker), PostgreSQL (3 bancos l\'{o}gicos), MongoDB, Redis, os 6 microsservi\c{c}os e o frontend. O comando \texttt{docker-compose up --build} inicializa o sistema completo, incluindo a cria\c{c}\~{a}o autom\'{a}tica de t\'{o}picos Kafka e seed de dados de demonstra\c{c}\~{a}o (duas contas mockadas com saldos em BRL, USD, EUR e GBP).
@@ -155,7 +159,7 @@ O frontend atua como proxy reverso via Next.js rewrites, roteando requisi\c{c}\~
 
 \section{Conclus\~{a}o e Trabalhos Futuros}
 
-Este trabalho demonstrou a viabilidade pr\'{a}tica de um sistema de extrato banc\'{a}rio multiconta e multimoeda utilizando uma arquitetura de microsservi\c{c}os pol\'{i}glota com Saga Orquestrado. A implementa\c{c}\~{a}o integra padr\~{o}es consolidados -- CQRS, Event Sourcing, dupla-entrada cont\'{a}bil e database-per-service -- em um sistema reproduz\'{i}vel e test\'{a}vel.
+Este trabalho demonstrou a viabilidade pr\'{a}tica de um sistema de extrato banc\'{a}rio multiconta e multimoeda utilizando uma arquitetura de microsservi\c{c}os pol\'{i}glota com Saga Orquestrado. A implementa\c{c}\~{a}o integra padr\~{o}es consolidados -- CQRS, Event Sourcing, Transactional Outbox, dupla-entrada cont\'{a}bil e database-per-service -- em um sistema reproduz\'{i}vel e test\'{a}vel.
 
 A suite de testes de caos validou que a arquitetura mant\'{e}m consist\^{e}ncia sob carga concorrente e que o mecanismo de compensa\c{c}\~{a}o da saga funciona adequadamente em cen\'{a}rios de falha. A escolha de banco de dados por servi\c{c}o (ACID vs NoSQL) demonstrou que nem todos os microsservi\c{c}os necessitam de garantias transacionais fortes, e que a sele\c{c}\~{a}o adequada impacta positivamente a performance.
 
